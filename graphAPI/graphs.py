@@ -1,4 +1,5 @@
 import os
+from bs4 import BeautifulSoup
 from pydantic.utils import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
@@ -90,3 +91,20 @@ def getPagesList(section_id):
     pages_list = sorted(pages_list, key=lambda x: datetime.fromisoformat(x["createdDateTime"].replace("Z", "+00:00")))
 
     return pages_list
+
+
+def getContent(page_id):
+    print("Running Page Content API")
+
+    headers["Content-Type"] = "text/html"
+    response = requests.get(C.CONTENT_URL.replace("{}", page_id), headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Unable to get page content {response.status_code} {response.text}")
+
+    html_response = response.text
+    soup = BeautifulSoup(html_response, "html.parser")
+    body = soup.find("body")
+    text = body.get_text(separator="\n", strip=True)
+
+    return text
+

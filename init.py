@@ -1,6 +1,5 @@
 import json
 import os
-from dotenv import load_dotenv
 from graphAPI.graphs import getNotebookList, getSectionList, getPagesList
 
 
@@ -46,12 +45,12 @@ def main():
         CACHE["Pages"] = {section_name: pages}
         update_cache = True
 
-    for p in pages:
-        print(p['title'], p['contentUrl'])
-
     if update_cache:
         updateCache()
 
+    print(f"Found {len(pages)} pages")
+
+    print("Completed Initialization")
 
 if __name__ == "__main__":
     main()
