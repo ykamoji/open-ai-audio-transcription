@@ -1,2 +1,4 @@
 msgraph==1.48.0
 python-dotenv==0.21.0
+openai==2.7.1
+pydub==0.25.1

@@ -3,6 +3,7 @@ import json
 import time
 from graphAPI.graphs import getContent
 from OIGenerator.utils import content_stats
+from OIGenerator.ttsApi import convert
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -39,6 +40,10 @@ def main():
             CONTENT_CACHE[page["title"]] = content
             update_cache = True
         print(f"Downloaded the content {page['title']} : {content_stats(content)}")
+
+        convert(content, page["title"])
+
+        # time.sleep(120)
 
     if update_cache: updateCache()
 
