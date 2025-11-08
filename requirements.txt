@@ -1,4 +1,7 @@
-msgraph==1.48.0
-python-dotenv==0.21.0
+msgraph-core
+python-dotenv
 openai==2.7.1
 pydub==0.25.1
+transformers==4.57.1
+vllm
+snac

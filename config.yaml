@@ -1,0 +1,12 @@
+Graph:
+  NotebookName: Trash
+  SectionName: "Book 5"
+Generator:
+  Pages: 1 # number(s) or all
+  OpenAI:
+    Action: False
+    ChunkLimit: 1000
+  Maya:
+    Action: True
+    ChunkLimit: 2000
+    ModelPath: /Users/ykamoji/Documents/open-ai-audio-transcription/models/ # /content/drive/MyDrive/AI/Models

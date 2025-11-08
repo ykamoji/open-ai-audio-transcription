@@ -4,6 +4,18 @@ Using Open AI model gpt-4o-mini-tts to convert pages from oneNote using GraphAPI
 
 
 ### Dependencies
-<div style="background-color:#f4f6f8; padding:15px;">
- msgraph-sdk==1.48.0
-</div>
+```
+msgraph-core
+python-dotenv
+openai==2.7.1
+pydub==0.25.1
+transformers==4.57.1
+vllm
+snac
+```
+
+
+### Start Up
+```
+export VLLM_CPU_KVCACHE_SPACE=8
+```

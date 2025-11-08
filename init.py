@@ -1,5 +1,7 @@
 import json
 import os
+import yaml
+from utils import CustomObject, get_yaml_loader
 from graphAPI.graphs import getNotebookList, getSectionList, getPagesList
 
 
@@ -14,6 +16,12 @@ def updateCache():
 
 def main():
 
+    with open('config.yaml', 'r') as file:
+        config = yaml.load(file, get_yaml_loader())
+
+    x = json.dumps(config)
+    Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
+
     update_cache = False
     if "Notebooks" in CACHE and CACHE["Notebooks"]:
         notebook_list = CACHE["Notebooks"]
@@ -22,7 +30,7 @@ def main():
         CACHE["Notebooks"] = notebook_list
         update_cache = True
 
-    notebook_name = os.getenv("NOTEBOOK_NAME")
+    notebook_name = Args.Graph.NotebookName
 
     if notebook_name not in notebook_list:
         raise Exception("Notebook not found in the OneNote directory !")
@@ -34,7 +42,8 @@ def main():
         CACHE["Sections"] = sections
         update_cache = True
 
-    section_name = os.getenv("SECTION_NAME")
+    section_name = Args.Graph.SectionName
+
     if section_name not in sections:
         raise Exception(f"Section not found in the OneNote {notebook_name} directory !")
 

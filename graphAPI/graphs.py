@@ -1,6 +1,6 @@
 import os
+from collections import defaultdict
 from bs4 import BeautifulSoup
-from pydantic.utils import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
