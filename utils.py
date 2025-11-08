@@ -25,7 +25,7 @@ class CustomObject:
 
 def get_yaml_loader():
 
-    pattern = re.compile('.*?\${(\w+)}.*?')
+    pattern = re.compile(r'.*?\${(\w+)}.*?')
 
     def constructor_env_variables(loader, node):
         value = loader.construct_scalar(node)
