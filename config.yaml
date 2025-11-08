@@ -8,5 +8,5 @@ Generator:
     ChunkLimit: 1000
   Maya:
     Action: True
-    ChunkLimit: 2000
+    ChunkLimit: 1000
     ModelPath: /Users/ykamoji/Documents/open-ai-audio-transcription/models/ # /content/drive/MyDrive/AI/Models

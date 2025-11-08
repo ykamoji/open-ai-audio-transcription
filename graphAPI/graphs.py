@@ -104,7 +104,7 @@ def getContent(page_id):
     html_response = response.text
     soup = BeautifulSoup(html_response, "html.parser")
     body = soup.find("body")
-    text = body.get_text(separator="\n", strip=True)
+    text = body.get_text(strip=True)
 
     return text
 

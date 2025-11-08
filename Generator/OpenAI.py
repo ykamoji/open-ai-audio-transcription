@@ -6,19 +6,18 @@ from Generator.utils import createChunks, merge_audio
 
 load_dotenv(override=True)
 
-if "OPEN_AI_KEY" not in os.environ:
-    raise Exception("Load OPEN AI Key Access token first !")
-
-client = OpenAI(api_key=os.environ["OPEN_AI_KEY"])
-
 instruction = (
     "You are a professional audiobook narrator. "
     "Read the following story in a warm, expressive tone, "
     "with natural pacing, emotional inflection, and pauses after sentences:\n\n"
 )
 
-
 def convert(Args, content, title):
+
+    if "OPEN_AI_KEY" not in os.environ:
+        raise Exception("Load OPEN AI Key Access token first !")
+
+    client = OpenAI(api_key=os.environ["OPEN_AI_KEY"])
 
     chunks = createChunks(content, Args.Generator.OpenAI.ChunkLimit)
 
