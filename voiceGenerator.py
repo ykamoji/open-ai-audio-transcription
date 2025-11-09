@@ -2,6 +2,7 @@ import os
 import json
 import yaml
 import time
+import argparse
 from utils import CustomObject, get_yaml_loader
 from GraphAPI.graphs import GraphAPI
 from Generator.utils import content_stats
@@ -12,11 +13,18 @@ from Generator.Maya import convert as mayaConvert
 class VoiceGenerator:
 
     def __init__(self):
-        with open('config.yaml', 'r') as file:
+
+        parser = argparse.ArgumentParser(description="Initidate data")
+        parser.add_argument("--config", type=str, default="Default", help="Configuration file")
+        args = parser.parse_args()
+
+        with open('default.yaml', 'r') as file:
             config = yaml.load(file, get_yaml_loader())
 
         x = json.dumps(config)
         self.Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
+
+        self.Args.Platform = args.config
 
         with open('cache.json') as f:
             self.CACHE = json.load(f)

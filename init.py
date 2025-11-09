@@ -15,7 +15,7 @@ def main():
         with open('cache.json', 'w') as f:
             json.dump(CACHE, f)
 
-    with open('config.yaml', 'r') as file:
+    with open('default.yaml', 'r') as file:
         config = yaml.load(file, get_yaml_loader())
 
     x = json.dumps(config)

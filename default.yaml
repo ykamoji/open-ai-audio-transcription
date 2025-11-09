@@ -1,0 +1,29 @@
+Graph:
+  NotebookName: Trash
+  SectionName: "Book 5"
+  RefreshPages: False
+  EnvPath:
+Generator:
+  Pages: 1 # number(s) or empty
+  PageNo:
+  AudioOutputPath:
+    Default: output/
+    Kaggle: /kaggle/working/output/
+    Colab: /content/drive/MyDrive/AI/Outputs/
+  BatchSize: 0
+  OpenAI:
+    Action: False
+    ChunkLimit: 1000
+  Maya:
+    Action: True
+    ModelPath:
+      Default: /Users/ykamoji/Documents/open-ai-audio-transcription/models/
+      Kaggle: /kaggle/working/open-ai-audio-transcription/models/
+      Colab: /content/drive/MyDrive/AI/Models
+    Characters:
+      - Name: David
+        Description: "Seductively character, Male voice in their 30s with a American accent. normal pitch, gravelly timbre, brisk pacing, casual tone at mid intensity"
+      - Name: Vanessa
+        Description: "Seductively character, Female voice in their 30s with a American accent. normal pitch, deep timbre, brisk pacing, casual tone at mid intensity"
+      - Name: Blake
+        Description: "Seductively character, Male voice in their 30s with a American accent. normal pitch, throaty timbre, brisk pacing, casual tone at mid intensity"
