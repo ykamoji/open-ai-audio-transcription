@@ -3,6 +3,8 @@ import json
 import yaml
 import time
 import argparse
+
+from Emotions.sanitise import sanitise
 from utils import CustomObject, get_yaml_loader
 from GraphAPI.graphs import GraphAPI
 from Generator.utils import content_stats
@@ -37,9 +39,20 @@ class VoiceGenerator:
             with open('contentCache.json', 'w') as f:
                 json.dump(self.CONTENT_CACHE, f)
 
+        if os.path.isfile('voiceCache.json'):
+            with open('voiceCache.json') as f:
+                self.VOICE_CACHE = json.load(f)
+        else:
+            self.VOICE_CACHE = {}
+            with open('voiceCache.json', 'w') as f:
+                json.dump(self.VOICE_CACHE, f)
+
     def updateCache(self):
         with open('contentCache.json', 'w') as f:
             json.dump(self.CONTENT_CACHE, f, indent=2, ensure_ascii=False)
+
+        with open('voiceCache.json', 'w') as f:
+            json.dump(self.VOICE_CACHE, f, indent=2, ensure_ascii=False)
 
     def generation(self):
 
@@ -71,10 +84,25 @@ class VoiceGenerator:
 
             print(f"Processing the content {page['title']} : {content_stats(content)}")
 
-            if self.Args.Generator.OpenAI.Action:
-                openAIConvert(self.Args, content, page["title"])
-            elif self.Args.Generator.Maya.Action:
-                mayaConvert(self.Args, content, page["title"])
+            if self.VOICE_CACHE and page["title"] in self.VOICE_CACHE:
+                spell_checked_lines = self.VOICE_CACHE[page["title"]]
+            else:
+                spell_checked_lines = sanitise(self.Args, content)
+                self.VOICE_CACHE[page["title"]] = spell_checked_lines
+                update_cache = True
+
+            if update_cache: self.updateCache()
+
+            # print(f"Creating Emotions for {page['title']}")
+
+            # print(f"Generating voice for {page['title']}")
+
+            # spell_checked_lines
+
+            # if self.Args.Generator.OpenAI.Action:
+            #     openAIConvert(self.Args, content, page["title"])
+            # elif self.Args.Generator.Maya.Action:
+            #     mayaConvert(self.Args, content, page["title"])
 
             if pageNo != len(pages) - 1:
                 time.sleep(30)
