@@ -7,7 +7,6 @@ import soundfile as sf
 import numpy as np
 import threading
 import queue
-import copy
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
@@ -114,16 +113,21 @@ def getModels(MODEL_PATH):
         trust_remote_code=True
     )
     model.eval()
+    tokenizer = getTokenizer(MODEL_PATH)
+    print("Loading SNAC audio decoder...")
+    snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
+    print("SNAC decoder loaded")
+    return model, snac_model, tokenizer
+
+
+def getTokenizer(MODEL_PATH):
     tokenizer = AutoTokenizer.from_pretrained(
         "maya-research/maya1",
         cache_dir=MODEL_PATH,
         trust_remote_code=True
     )
     print(f"Model loaded: {len(tokenizer)} tokens in vocabulary")
-    print("Loading SNAC audio decoder...")
-    snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
-    print("SNAC decoder loaded")
-    return model, snac_model, tokenizer
+    return tokenizer
 
 
 def delete_previous_outputs(outputPath, step):
@@ -143,8 +147,6 @@ def convert(Args, content, title):
 
     MODEL_PATH = MayaArgs.ModelPath.__dict__[Args.Platform]
 
-    model, snac_model, tokenizer = getModels(MODEL_PATH)
-
     description = getDescription(MayaArgs, title)
 
     outputPath = Args.Generator.AudioOutputPath.__dict__[Args.Platform]
@@ -155,14 +157,14 @@ def convert(Args, content, title):
 
     if GPUCount > 0:
         print("Running in GPU env.")
-        multiGPU(chunks, description, model, outputPath, snac_model, title, tokenizer)
+        multiGPU(chunks, description, outputPath, title, MODEL_PATH)
     else:
         print("Running in CPU env.")
+        model, snac_model, tokenizer = getModels(MODEL_PATH)
         cpuProcess(chunks, description, model, outputPath, snac_model, title, tokenizer)
 
 
 def processVoice(model, device, tokenizer, snac_model, text, description, part):
-
     prompt = build_prompt(tokenizer, description, text)
     inputs = tokenizer(prompt, return_tensors="pt")
 
@@ -219,7 +221,7 @@ def processVoice(model, device, tokenizer, snac_model, text, description, part):
 
 
 def saveAudio(outputPath, audio_chunks, title):
-    silence = np.zeros(int( 0.1 * 24000))
+    silence = np.zeros(int(0.1 * 24000))
     full_audio = []
     for i, audio in enumerate(audio_chunks):
         full_audio.append(audio)
@@ -283,7 +285,7 @@ def cpuProcess(chunks, description, model, outputPath, snac_model, title, tokeni
     saveAudio(outputPath, audio_chunks, title)
 
 
-def multiGPU(chunks, description, model, outputPath, snac_model, title, tokenizer):
+def multiGPU(chunks, description, outputPath, title, MODEL_PATH):
     writer = SummaryWriter(log_dir=f"{outputPath}runs/{title}")
 
     available_gpus = torch.cuda.device_count()
@@ -309,23 +311,28 @@ def multiGPU(chunks, description, model, outputPath, snac_model, title, tokenize
 
     pbar = tqdm(total=len(chunks), desc="Generating audio")
 
-    models = [copy.deepcopy(model).to(f"cuda:{i}") for i in range(torch.cuda.device_count())]
-    snac_models = [copy.deepcopy(snac_model).to(f"cuda:{i}") for i in range(torch.cuda.device_count())]
+    models = []
+    snac_models = []
+    for i in range(available_gpus):
+        with torch.device(f"cuda:{i}"):
+            model, snac_model, tokenizer = getModels(MODEL_PATH)
+            models.append(model)
+            snac_models.append(snac_model)
 
     # Voice warmup
     print("Warming up")
     warm_up_text = "Hi there, this is a warm up sentence so that the voice stabilizes from the beginning. <pause>"
     for model in models:
         _ = model.generate(
-                **tokenizer(build_prompt(tokenizer, warm_up_text, description), return_tensors="pt").to(model.device),
-                max_new_tokens=1024,
-                min_new_tokens=28,
-                temperature=0.4,
-                top_p=0.9,
-                repetition_penalty=1.1,
-                do_sample=True,
-                eos_token_id=CODE_END_TOKEN_ID,
-                pad_token_id=tokenizer.pad_token_id,
+            **tokenizer(build_prompt(tokenizer, warm_up_text, description), return_tensors="pt").to(model.device),
+            max_new_tokens=1024,
+            min_new_tokens=28,
+            temperature=0.4,
+            top_p=0.9,
+            repetition_penalty=1.1,
+            do_sample=True,
+            eos_token_id=CODE_END_TOKEN_ID,
+            pad_token_id=tokenizer.pad_token_id,
         )
 
     for gpu_id in range(available_gpus):
@@ -340,6 +347,7 @@ def multiGPU(chunks, description, model, outputPath, snac_model, title, tokenize
     for t in threads:
         t.join()
 
+    writer.flush()
     writer.close()
 
     ordered_audios = sharedData["results"]
@@ -394,16 +402,17 @@ def gpu_worker(gpu_id, q, model, snac_model, tokenizer, description, sharedData,
                     correlation = np.corrcoef(sharedData["input_lengths"], sharedData["generation_times"])[0, 1]
                     writer.add_scalar("Performance/InputDurationCorr", correlation, step)
 
-                    # Save partial audios
-                    partial_audios = sharedData["results"]
-                    partial_indices = sorted(partial_audios.keys())
-                    partial_audio = [partial_audios[idx] for idx in partial_indices]
+                    if step % (LOG_STEPS * 2) == 0:
+                        # Save partial audios
+                        partial_audios = sharedData["results"]
+                        partial_indices = sorted(partial_audios.keys())
+                        partial_audio = [partial_audios[idx] for idx in partial_indices]
 
-                    delete_previous_outputs(outputPath, step)
-                    # file = outputPath + f"partial_{step}.wav"
-                    # sf.write(file, partial_audio, 24000)
-                    # print(f"[{gpu_id}] Saving partial audio until {step}")
-                    saveAudio(outputPath, partial_audio, f"partial_{step}")
+                        delete_previous_outputs(outputPath, step)
+                        # file = outputPath + f"partial_{step}.wav"
+                        # sf.write(file, partial_audio, 24000)
+                        # print(f"[{gpu_id}] Saving partial audio until {step}")
+                        saveAudio(outputPath, partial_audio, f"partial_{step}")
 
         q.task_done()
         torch.cuda.empty_cache()
