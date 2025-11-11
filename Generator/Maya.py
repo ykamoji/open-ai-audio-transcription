@@ -115,7 +115,7 @@ def getModels(MODEL_PATH):
     model.eval()
     tokenizer = getTokenizer(MODEL_PATH)
     print("Loading SNAC audio decoder...")
-    snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz").eval()
+    snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz",  cache_dir=MODEL_PATH).eval()
     print("SNAC decoder loaded")
     return model, snac_model, tokenizer
 
