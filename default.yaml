@@ -11,7 +11,7 @@ Generator:
     Kaggle: /kaggle/working/open-ai-audio-transcription/output/
     Colab: /content/drive/MyDrive/AI/Outputs/
   GPU:
-    Default: 1
+    Default: 0
     Kaggle: 2
     Colab: 1
   OpenAI:
@@ -19,7 +19,6 @@ Generator:
     ChunkLimit: 1000
   Maya:
     Action: True
-    MaxTokens: 2048
     ModelPath:
       Default: /Users/ykamoji/Documents/open-ai-audio-transcription/models/
       Kaggle: /kaggle/working/open-ai-audio-transcription/models/
