@@ -1,14 +1,3 @@
-from pydub import AudioSegment
-
-
-def content_stats(content):
-    count = len(content.replace(" ", "").replace("\n", ""))
-    word_count = len(content.split())
-    lines = len(content.split('.'))
-    paras = len(content.split("\n\n"))
-    return f"{count} characters, {word_count} words, {lines} lines, {paras} paragraphs"
-
-
 def createChunks(content, limit=None):
 
     chunks = []
@@ -54,20 +43,3 @@ def paraChunks(limit, paragraphs):
             raise Exception(msg)
 
     return chunks
-
-
-def merge_audio(files, output_file, format="mp3"):
-    combined = AudioSegment.empty()
-    for file in files:
-        print(f"Merging {file}...")
-        segment = None
-        if format == "mp3":
-            segment = AudioSegment.from_mp3(file)
-        elif format == "wav":
-            segment = AudioSegment.from_wav(file)
-
-        combined += segment
-
-    combined.export(output_file, format=format)
-
-    print(f"Merged audio saved as {output_file}")
