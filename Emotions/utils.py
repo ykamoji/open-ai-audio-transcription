@@ -5,7 +5,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 def getModelAndTokenizer(MODEL_PATH):
 
-    # from transformers import bitsandbytes
+    # from transformers import BitsAndBytesConfig
 
     # bnb_config = BitsAndBytesConfig(
     #     load_in_8bit=True,
