@@ -1,6 +1,6 @@
 import torch
 from tqdm import tqdm
-from Emotions.utils import getModelAndTokenizer
+from Emotions.utils import getModelAndTokenizer, clean_output
 
 emotions_list = [
     "<laugh>",
@@ -42,14 +42,13 @@ Input: "I tried so hard, but it still wasn’t enough."
 Answer: "I tried so hard, <sigh> but it still wasn’t enough <cry>."
 Now process the following paragraph and add the most appropriate emotion tags:
 {}
+Answer:
 """
 
 
-def generate_emotion_lines(model, tokenizer, lines):
+def generate_emotion_lines(model, tokenizer, paragraph):
 
-    sentences = (",".join(lines))
-
-    batch_prompts = prompt.replace("{}", sentences)
+    batch_prompts = prompt.replace("{}", paragraph)
 
     inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True, max_length=4096).to(
         model.device)
@@ -57,10 +56,8 @@ def generate_emotion_lines(model, tokenizer, lines):
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=512,
-            temperature=0.4,
-            top_p=0.9,
-            do_sample=True,
+            max_new_tokens=4096,
+            do_sample=False,
             repetition_penalty=1.1,
             pad_token_id=tokenizer.eos_token_id
         )
@@ -73,27 +70,17 @@ def generate_emotion_lines(model, tokenizer, lines):
 def addEmotions(Args, content):
 
     MODEL_PATH = Args.Emotions.ModelPath.__dict__[Args.Platform]
-    BATCH_SIZE = Args.Emotions.BatchSize
 
-    # model, tokenizer = getModelAndTokenizer(MODEL_PATH)
+    model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize)
 
-    emotives = []
-    for i in tqdm(range(0, len(content), BATCH_SIZE), desc="Processing", ncols=100):
-        batch = content[i: i + BATCH_SIZE]
-        para_break = -1
-        for idx, line in enumerate(batch):
-            if not line.strip():
-                para_break = idx
-                break
+    outputs = []
+    for batch in tqdm(content, desc="Processing", ncols=100):
 
-        if para_break > -1:
-            batch.pop(para_break)
-
-        # emotion_lines = generate_emotion_lines(model, tokenizer, batch)[0]
-
-        emotives.extend(emotion_lines)
-
+        emotion_lines = generate_emotion_lines(model, tokenizer, batch)
+        outputs.extend(emotion_lines)
         torch.cuda.empty_cache()
+
+    emotives = clean_output(outputs, [])
 
     return emotives
 

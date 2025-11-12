@@ -3,14 +3,15 @@ Graph:
   SectionName: "Book 5"
   RefreshPages: False
   EnvPath:
+  PageLimit: # number(s) or empty
 Emotions:
-  BatchSize: 4
+  Quantize: True
   ModelPath:
     Default: /Users/ykamoji/Documents/open-ai-maya-audio-generation/models/
     Kaggle: /kaggle/working/open-ai-maya-audio-generation/models/
     Colab: /content/drive/MyDrive/AI/Models
 Generator:
-  Pages: 1 # number(s) or empty
+  PageLimit: 1 # number(s) or empty
   PageNo:
   AudioOutputPath:
     Default: output/

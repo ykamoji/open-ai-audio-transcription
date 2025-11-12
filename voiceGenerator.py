@@ -3,11 +3,10 @@ import json
 import yaml
 import time
 import argparse
+from utils import createCache
 from Emotions.sanitise import sanitise
 from Emotions.emotions import addEmotions
-from utils import CustomObject, get_yaml_loader
-from GraphAPI.graphs import GraphAPI
-from Generator.utils import content_stats
+from utils import CustomObject, get_yaml_loader, updateCache
 from Generator.OpenAI import convert as openAIConvert
 from Generator.Maya import convert as mayaConvert
 
@@ -16,12 +15,9 @@ class VoiceGenerator:
 
     def __init__(self):
 
-        self.CONTENT_CACHE = {}
-        self.VOICE_CACHE = {}
-        self.EMOTION_CACHE = {}
-
         parser = argparse.ArgumentParser(description="Initidate data")
         parser.add_argument("--config", type=str, default="Default", help="Configuration file")
+        parser.add_argument("--step", type=str, default="0", help="Step definition")
         args = parser.parse_args()
 
         with open('default.yaml', 'r') as file:
@@ -31,105 +27,71 @@ class VoiceGenerator:
         self.Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
 
         self.Args.Platform = args.config
+        self.Args.Step = int(args.step)
 
-        with open('cache.json') as f:
-            self.CACHE = json.load(f)
+        with open('contentCache.json') as f:
+            self.CONTENT_CACHE = json.load(f)
 
-        self.createCache('contentCache.json')
-        self.createCache('voiceCache.json')
-        self.createCache('emotionCache.json')
+        self.VOICE_CACHE = createCache('voiceCache.json')
+        self.EMOTION_CACHE = createCache('emotionCache.json')
 
-    def createCache(self, file):
-
-        if os.path.isfile(file):
-            with open(file) as f:
-                if file == 'contentCache.json':
-                    self.CONTENT_CACHE = json.load(f)
-                elif file == 'voiceCache.json':
-                    self.VOICE_CACHE = json.load(f)
-                elif file == 'emotionCache.json':
-                    self.EMOTION_CACHE = json.load(f)
-        else:
-            with open(file, 'w') as f:
-                if "content" in file:
-                    json.dump(self.CONTENT_CACHE, f)
-                elif "voice" in file:
-                    json.dump(self.VOICE_CACHE, f)
-                elif "emotion" in file:
-                    json.dump(self.EMOTION_CACHE, f)
-
-    def updateCache(self):
-
-        for file in ['contentCache.json', 'voiceCache.json', 'emotionCache.json']:
-            with open(file, 'w') as f:
-                if file == 'contentCache.json':
-                    json.dump(self.CONTENT_CACHE, f, indent=2, ensure_ascii=False)
-                elif file == 'voiceCache.json':
-                    json.dump(self.VOICE_CACHE, f, indent=2, ensure_ascii=False)
-                elif file == 'emotionCache.json':
-                    json.dump(self.EMOTION_CACHE, f, indent=2, ensure_ascii=False)
+    def load_content(self):
+        data = []
+        for pages in self.CONTENT_CACHE:
+            data.append({
+                "title": pages,
+                "content": self.CONTENT_CACHE[pages]['content'],
+            })
+        return data
 
     def generation(self):
-
-        update_cache = False
 
         notebook_name = self.Args.Graph.NotebookName
         section_name = self.Args.Graph.SectionName
 
         print(f"Running voice generation for {notebook_name} {section_name}")
 
-        pages = self.CACHE["Pages"][section_name]
+        pages = self.load_content()
 
-        if self.Args.Generator.Pages:
-            pages = pages[:self.Args.Generator.Pages]
+        limit = len(pages)
+        if self.Args.Generator.PageLimit:
+            limit = self.Args.Generator.PageLimit
 
-        graph = GraphAPI(self.Args.Graph)
+        if self.Args.Step == 1:
+            contents_to_process = []
+            update_voice_cache = False
+            for pageNo, page in enumerate(pages[:limit]):
+                if not self.VOICE_CACHE or page["title"] not in self.VOICE_CACHE:
+                    contents_to_process.append(page)
+                    update_voice_cache = True
 
-        for pageNo, page in enumerate(pages):
-            if not self.Args.Graph.RefreshPages and self.CONTENT_CACHE and page["title"] in self.CONTENT_CACHE:
-                content = self.CONTENT_CACHE[page["title"]]
-            else:
-                content = graph.getContent(page["id"])
-                self.CONTENT_CACHE[page["title"]] = content
-                update_cache = True
+            spell_checked_paragraphs = sanitise(self.Args, contents_to_process)
+            for page in spell_checked_paragraphs:
+                self.VOICE_CACHE[page["title"]] = page['content']
 
-            if update_cache: self.updateCache()
+            if update_voice_cache: updateCache('voiceCache.json', self.VOICE_CACHE)
 
-            # print(content)
+            print(f"Spell check and grammar verified !")
 
-            print(f"Processing the content {page['title']} : {content_stats(content)}")
+        # print(f"Creating Emotions for {page['title']}")
 
-            if self.VOICE_CACHE and page["title"] in self.VOICE_CACHE:
-                spell_checked_lines = self.VOICE_CACHE[page["title"]]
-            else:
-                spell_checked_lines = sanitise(self.Args, content)
-                self.VOICE_CACHE[page["title"]] = spell_checked_lines
-                update_cache = True
+        # if self.EMOTION_CACHE and page["title"] in self.EMOTION_CACHE:
+        #     emotion_lines = self.EMOTION_CACHE[page["title"]]
+        # else:
+        #     emotion_lines = addEmotions(self.Args, content)
+        #     self.EMOTION_CACHE[page["title"]] = emotion_lines
+        #     update_cache = True
+        #
+        # if update_cache: self.updateCache()
 
-            if update_cache: self.updateCache()
+        # print(f"Generating voice for {page['title']}")
 
-            # print(f"Creating Emotions for {page['title']}")
+        # spell_checked_lines
 
-            # if self.EMOTION_CACHE and page["title"] in self.EMOTION_CACHE:
-            #     emotion_lines = self.EMOTION_CACHE[page["title"]]
-            # else:
-            #     emotion_lines = addEmotions(self.Args, content)
-            #     self.EMOTION_CACHE[page["title"]] = emotion_lines
-            #     update_cache = True
-            #
-            # if update_cache: self.updateCache()
-
-            # print(f"Generating voice for {page['title']}")
-
-            # spell_checked_lines
-
-            # if self.Args.Generator.OpenAI.Action:
-            #     openAIConvert(self.Args, content, page["title"])
-            # elif self.Args.Generator.Maya.Action:
-            #     mayaConvert(self.Args, content, page["title"])
-
-            if pageNo != len(pages) - 1:
-                time.sleep(30)
+        # if self.Args.Generator.OpenAI.Action:
+        #     openAIConvert(self.Args, content, page["title"])
+        # elif self.Args.Generator.Maya.Action:
+        #     mayaConvert(self.Args, content, page["title"])
 
 
 if __name__ == "__main__":
