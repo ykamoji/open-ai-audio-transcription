@@ -3,8 +3,8 @@ import json
 import yaml
 import time
 import argparse
-
 from Emotions.sanitise import sanitise
+from Emotions.emotions import addEmotions
 from utils import CustomObject, get_yaml_loader
 from GraphAPI.graphs import GraphAPI
 from Generator.utils import content_stats
@@ -15,6 +15,10 @@ from Generator.Maya import convert as mayaConvert
 class VoiceGenerator:
 
     def __init__(self):
+
+        self.CONTENT_CACHE = {}
+        self.VOICE_CACHE = {}
+        self.EMOTION_CACHE = {}
 
         parser = argparse.ArgumentParser(description="Initidate data")
         parser.add_argument("--config", type=str, default="Default", help="Configuration file")
@@ -31,28 +35,39 @@ class VoiceGenerator:
         with open('cache.json') as f:
             self.CACHE = json.load(f)
 
-        if os.path.isfile('contentCache.json'):
-            with open('contentCache.json') as f:
-                self.CONTENT_CACHE = json.load(f)
-        else:
-            self.CONTENT_CACHE = {}
-            with open('contentCache.json', 'w') as f:
-                json.dump(self.CONTENT_CACHE, f)
+        self.createCache('contentCache.json')
+        self.createCache('voiceCache.json')
+        self.createCache('emotionCache.json')
 
-        if os.path.isfile('voiceCache.json'):
-            with open('voiceCache.json') as f:
-                self.VOICE_CACHE = json.load(f)
+    def createCache(self, file):
+
+        if os.path.isfile(file):
+            with open(file) as f:
+                if file == 'contentCache.json':
+                    self.CONTENT_CACHE = json.load(f)
+                elif file == 'voiceCache.json':
+                    self.VOICE_CACHE = json.load(f)
+                elif file == 'emotionCache.json':
+                    self.EMOTION_CACHE = json.load(f)
         else:
-            self.VOICE_CACHE = {}
-            with open('voiceCache.json', 'w') as f:
-                json.dump(self.VOICE_CACHE, f)
+            with open(file, 'w') as f:
+                if "content" in file:
+                    json.dump(self.CONTENT_CACHE, f)
+                elif "voice" in file:
+                    json.dump(self.VOICE_CACHE, f)
+                elif "emotion" in file:
+                    json.dump(self.EMOTION_CACHE, f)
 
     def updateCache(self):
-        with open('contentCache.json', 'w') as f:
-            json.dump(self.CONTENT_CACHE, f, indent=2, ensure_ascii=False)
 
-        with open('voiceCache.json', 'w') as f:
-            json.dump(self.VOICE_CACHE, f, indent=2, ensure_ascii=False)
+        for file in ['contentCache.json', 'voiceCache.json', 'emotionCache.json']:
+            with open(file, 'w') as f:
+                if file == 'contentCache.json':
+                    json.dump(self.CONTENT_CACHE, f, indent=2, ensure_ascii=False)
+                elif file == 'voiceCache.json':
+                    json.dump(self.VOICE_CACHE, f, indent=2, ensure_ascii=False)
+                elif file == 'emotionCache.json':
+                    json.dump(self.EMOTION_CACHE, f, indent=2, ensure_ascii=False)
 
     def generation(self):
 
@@ -94,6 +109,15 @@ class VoiceGenerator:
             if update_cache: self.updateCache()
 
             # print(f"Creating Emotions for {page['title']}")
+
+            # if self.EMOTION_CACHE and page["title"] in self.EMOTION_CACHE:
+            #     emotion_lines = self.EMOTION_CACHE[page["title"]]
+            # else:
+            #     emotion_lines = addEmotions(self.Args, content)
+            #     self.EMOTION_CACHE[page["title"]] = emotion_lines
+            #     update_cache = True
+            #
+            # if update_cache: self.updateCache()
 
             # print(f"Generating voice for {page['title']}")
 

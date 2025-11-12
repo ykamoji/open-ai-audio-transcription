@@ -1,37 +1,7 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-# from transformers import bitsandbytes
 from tqdm import tqdm
-
 from Generator.utils import createChunks
-
-
-def getModelAndTokenizer(MODEL_PATH):
-
-    # bnb_config = BitsAndBytesConfig(
-    #     load_in_8bit=True,
-    #     llm_int8_threshold=6.0,
-    #     llm_int8_enable_fp32_cpu_offload=False
-    # )
-
-    model = AutoModelForCausalLM.from_pretrained(
-        "mistralai/Mistral-7B-Instruct-v0.3",
-        # quantization_config=bnb_config,
-        device_map="auto",
-        torch_dtype=torch.float16,
-        low_cpu_mem_usage=True,
-        cache_dir=MODEL_PATH
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3",
-                                              cache_dir=MODEL_PATH)
-
-    tokenizer.pad_token = tokenizer.eos_token
-    if model.config.eos_token_id is None:
-        model.config.eos_token_id = tokenizer.eos_token_id
-    model.config.pad_token_id = model.config.eos_token_id
-
-    return model, tokenizer
+from Emotions.utils import getModelAndTokenizer, clean_output
 
 
 def generate_correct_lines(model, tokenizer, lines):
@@ -41,7 +11,7 @@ def generate_correct_lines(model, tokenizer, lines):
     #         + "Based on the above example and answer, correct the following sentences:" \
     #         + f"Sentences: {(",".join(lines))} Answer:"
 
-    sentences = (",".join(lines))
+    sentences = (" ".join(lines))
 
     batch_prompts = "You are a precise spelling and grammar corrector. Correct only clear spelling and grammar errors." + \
                     ("Do NOT change proper nouns, names, technical terms, or uncommon words. Capitalize nouns and "
@@ -73,7 +43,6 @@ def generate_correct_lines(model, tokenizer, lines):
 
 
 def sanitise(Args, content):
-
     MODEL_PATH = Args.Emotions.ModelPath.__dict__[Args.Platform]
     BATCH_SIZE = Args.Emotions.BatchSize
 
@@ -83,7 +52,7 @@ def sanitise(Args, content):
 
     chunks = createChunks(content)
 
-    corrected = []
+    outputs = []
     for i in tqdm(range(0, len(chunks), BATCH_SIZE), desc="Processing", ncols=100):
         batch = chunks[i: i + BATCH_SIZE]
         para_break = -1
@@ -93,12 +62,14 @@ def sanitise(Args, content):
                 break
 
         if para_break > -1:
-            batch = list(batch).pop(para_break)
+            batch.pop(para_break)
         corrected_lines = generate_correct_lines(model, tokenizer, batch)[0]
-        corrected_lines = corrected_lines.split("Answer:", 1)[1].strip()
-        corrected_lines = [line.strip() + '.' for line in corrected_lines.split('.')]
-        corrected_lines.insert(para_break, " ")
-        corrected.extend(corrected_lines)
+
+        outputs.extend(corrected_lines)
+
         torch.cuda.empty_cache()
+
+    corrected = clean_output(outputs)
+
 
     return corrected
