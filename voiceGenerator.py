@@ -49,7 +49,7 @@ class VoiceGenerator:
         return data
 
     def add_title(self, notebook_name, section_name, title):
-        return self.TITLE_CACHE.get(notebook_name, {}).get(section_name, {}).get(title, [None])[0]
+        return title + " " + self.TITLE_CACHE.get(notebook_name, {}).get(section_name, {}).get(title, [None])[0]
 
     def generation(self):
 
@@ -114,7 +114,7 @@ class VoiceGenerator:
                 if pageNo != end:
                     time.sleep(60)
 
-            audios = glob.glob(outputPath + "audios/*.npy")
+            audios = [file for file in glob.glob(outputPath + "audios/*.npy") if "partial" not in file]
             audios.sort(key=os.path.getmtime)
             audiobook = []
             for audio in audios:
@@ -125,8 +125,6 @@ class VoiceGenerator:
             final_audio_path = outputPath + 'audios/audiobook.wav'
             sf.write(final_audio_path, audiobook, 24000)
             print(f"Saved audiobook in {final_audio_path} !")
-
-
 
 
 if __name__ == "__main__":

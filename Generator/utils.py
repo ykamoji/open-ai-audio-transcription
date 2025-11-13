@@ -24,6 +24,31 @@ def convert_to_sentences(content):
     return lines
 
 
+def batch_sentences(lines, limit=200):
+    result = []
+    current = ""
+    for line in lines:
+        if line.strip() == "":
+            if current:
+                result.append(current.strip())
+                current = ""
+            result.append("")
+            continue
+
+        if len(current) + len(line) + (1 if current else 0) > limit:
+            if current:
+                result.append(current.strip())
+            current = line
+        else:
+            current = (current + " " + line).strip() if current else line
+
+    if current:
+        result.append(current.strip())
+
+    return result
+
+
+
 def paraChunks(limit, paragraphs):
     chunks = []
     for para in paragraphs:

@@ -10,7 +10,7 @@ from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from Generator.utils import createChunks
+from Generator.utils import createChunks, batch_sentences
 from snac import SNAC
 
 warnings.filterwarnings("ignore")
@@ -130,7 +130,7 @@ def getTokenizer(MODEL_PATH):
 
 
 def delete_previous_outputs(outputPath, step):
-    files = glob.glob(outputPath + "audios/partial_*.wav")
+    files = glob.glob(outputPath + "/partial_*.wav")
     files.sort(key=os.path.getmtime)
     files_to_delete = files[:-2]
     if files_to_delete and step > 0 and step % LOG_STEPS == 0:
@@ -186,6 +186,8 @@ def processVoice(model, device, tokenizer, snac_model, text, description, part):
                 do_sample=True,
                 eos_token_id=CODE_END_TOKEN_ID,  # Stop at end of speech token
                 pad_token_id=tokenizer.pad_token_id,
+                use_cache=True,
+                attn_implementation="flash_attention_2"
             )
 
             generated_ids = outputs[0, inputs['input_ids'].shape[1]:].tolist()
@@ -196,6 +198,7 @@ def processVoice(model, device, tokenizer, snac_model, text, description, part):
             # print(f"Part {part} EOS token found at position {eos_position}/{len(generated_ids)}")
         else:
             EOS_FOUND = False
+            generated_ids = None
             max_new_tokens *= 2
             print(f"Part {part} {text[:50]}... EOS token not found. Running again with max_token {max_new_tokens}")
 
@@ -222,13 +225,13 @@ def processVoice(model, device, tokenizer, snac_model, text, description, part):
 
 def saveAudio(outputPath, audio_chunks, title):
     silence = np.zeros(int(0.1 * 24000))
-    full_audio = [audio_chunks[0], np.zeros(int(0.4 * 24000))]
+    full_audio = [audio_chunks[0], np.zeros(int(0.25 * 24000))]
     for audio in audio_chunks[1:-1]:
         full_audio.append(audio)
         full_audio.append(silence)
     full_audio.append(audio_chunks[-1])
     full_audio = np.concatenate(full_audio)
-    file = outputPath + f"audios/{title}.npy"
+    file = outputPath + f"{title}.npy"
     Path(file).parent.mkdir(parents=True, exist_ok=True)
     np.save(file, full_audio)
 
@@ -240,7 +243,7 @@ def cpuProcess(chunks, description, model, outputPath, snac_model, title, tokeni
     writer = SummaryWriter(log_dir=f"{outputPath}runs/{title}")
     step = 0
     device = "cpu"
-
+    audio_path = outputPath + f"audios/{title}/"
     for part, chunk in enumerate(tqdm(chunks, desc="Generating audio")):
         # print(chunk)
         input_length = len(chunk)
@@ -270,17 +273,17 @@ def cpuProcess(chunks, description, model, outputPath, snac_model, title, tokeni
                 correlation = np.corrcoef(input_lengths, generation_times)[0, 1]
                 writer.add_scalar("Performance/InputDurationCorr", correlation, step)
 
-            delete_previous_outputs(outputPath, step)
-            saveAudio(outputPath, audio_chunks, f"partial_{step}")
+            delete_previous_outputs(audio_path, step)
+            saveAudio(audio_path, audio_chunks, f"partial_{step}")
 
         step += 1
     writer.close()
-    saveAudio(outputPath, audio_chunks, title)
+    saveAudio(audio_path, audio_chunks, title)
 
 
 def multiGPU(chunks, description, outputPath, title, MODEL_PATH):
     writer = SummaryWriter(log_dir=f"{outputPath}runs/{title}")
-
+    chunks = batch_sentences(chunks)
     available_gpus = torch.cuda.device_count()
 
     q = queue.Queue()
@@ -327,12 +330,15 @@ def multiGPU(chunks, description, outputPath, title, MODEL_PATH):
                 do_sample=True,
                 eos_token_id=CODE_END_TOKEN_ID,
                 pad_token_id=tokenizer.pad_token_id,
+                attn_implementation="flash_attention_2"
             )
+
+    audio_path = outputPath + f"audios/{title}/"
 
     for gpu_id in range(available_gpus):
         t = threading.Thread(target=gpu_worker,
                              args=(f"cuda:{gpu_id}", q, models[gpu_id], snac_models[gpu_id], tokenizer, description,
-                                   sharedData, lock, writer, outputPath, pbar))
+                                   sharedData, lock, writer, audio_path, pbar))
         t.start()
         threads.append(t)
 
@@ -347,7 +353,7 @@ def multiGPU(chunks, description, outputPath, title, MODEL_PATH):
     ordered_audios = sharedData["results"]
     ordered_indices = sorted(ordered_audios.keys())
     full_audio = [ordered_audios[idx] for idx in ordered_indices]
-    saveAudio(outputPath, full_audio, title)
+    saveAudio(audio_path, full_audio, title)
 
 
 def gpu_worker(gpu_id, q, model, snac_model, tokenizer, description, sharedData, lock, writer, outputPath, pbar):
