@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import threading
 import queue
+from pathlib import Path
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
@@ -227,6 +228,7 @@ def saveAudio(outputPath, audio_chunks, title):
     full_audio.append(audio_chunks[-1])
     full_audio = np.concatenate(full_audio)
     file = outputPath + f"audios/{title}.npy"
+    Path(file).parent.mkdir(parents=True, exist_ok=True)
     np.save(file, full_audio)
 
 

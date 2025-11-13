@@ -106,10 +106,11 @@ class VoiceGenerator:
             outputPath = self.Args.Generator.AudioOutputPath.__dict__[self.Args.Platform]
             for pageNo, page in enumerate(pages[:limit]):
                 print(f"Generating voice for {notebook_name} {section_name} {page['title']}")
+                content = "\n\n".join(self.EMOTION_CACHE[page['title']])
                 if self.Args.Generator.OpenAI.Action:
-                    openAIConvert(self.Args, self.EMOTION_CACHE[page['title']], page["title"])
+                    openAIConvert(self.Args, content, page["title"])
                 elif self.Args.Generator.Maya.Action:
-                    mayaConvert(self.Args, self.EMOTION_CACHE[page['title']], page["title"], outputPath)
+                    mayaConvert(self.Args, content, page["title"], outputPath)
                 if pageNo != end:
                     time.sleep(60)
 
