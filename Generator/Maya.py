@@ -27,7 +27,7 @@ SOA_ID = 128261
 BOS_ID = 128000
 TEXT_EOT_ID = 128009
 
-LOG_STEPS = 40
+LOG_STEPS = 20
 
 
 def build_prompt(tokenizer, description: str, text: str) -> str:
