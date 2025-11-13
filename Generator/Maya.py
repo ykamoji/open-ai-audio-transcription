@@ -313,20 +313,21 @@ def multiGPU(chunks, description, outputPath, title, MODEL_PATH):
             snac_models.append(snac_model)
 
     # Voice warmup
-    print("Warming up")
-    warm_up_text = "Hi there, this is a warm up sentence so that the voice stabilizes from the beginning. <pause>"
+    warm_up_text = "Hi there, this is a warm up sentence so that the voice stabilizes from the beginning.  "
     for model in models:
-        _ = model.generate(
-            **tokenizer(build_prompt(tokenizer, warm_up_text, description), return_tensors="pt").to(model.device),
-            max_new_tokens=1024,
-            min_new_tokens=28,
-            temperature=0.4,
-            top_p=0.9,
-            repetition_penalty=1.1,
-            do_sample=True,
-            eos_token_id=CODE_END_TOKEN_ID,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        with torch.inference_mode():
+            print(f"Warming up model in {model.device}")
+            _ = model.generate(
+                **tokenizer(build_prompt(tokenizer, warm_up_text, description), return_tensors="pt").to(model.device),
+                max_new_tokens=1024,
+                min_new_tokens=28,
+                temperature=0.4,
+                top_p=0.9,
+                repetition_penalty=1.1,
+                do_sample=True,
+                eos_token_id=CODE_END_TOKEN_ID,
+                pad_token_id=tokenizer.pad_token_id,
+            )
 
     for gpu_id in range(available_gpus):
         t = threading.Thread(target=gpu_worker,
