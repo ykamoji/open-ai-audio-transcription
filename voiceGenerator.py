@@ -48,6 +48,9 @@ class VoiceGenerator:
             })
         return data
 
+    def add_title(self, notebook_name, section_name, title):
+        return self.TITLE_CACHE.get(notebook_name, {}).get(section_name, {}).get(title, [None])[0]
+
     def generation(self):
 
         notebook_name = self.Args.Graph.NotebookName
@@ -92,7 +95,8 @@ class VoiceGenerator:
 
             emotion_paragraphs = addEmotions(self.Args, contents_to_process)
             for page in emotion_paragraphs:
-                page['content'].insert(0, self.TITLE_CACHE[notebook_name][section_name][page["title"]][0])
+                suggested_title = self.add_title(notebook_name, section_name, page["title"])
+                page['content'].insert(0, suggested_title)
                 self.EMOTION_CACHE[page["title"]] = page['content']
 
             if update_emotion_cache: updateCache('emotionCache.json', self.EMOTION_CACHE)
