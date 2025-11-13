@@ -106,13 +106,21 @@ def getDescription(MayaArgs, title):
 
 def getModels(MODEL_PATH):
     print("Loading model...")
-    model = AutoModelForCausalLM.from_pretrained(
-        "maya-research/maya1",
-        cache_dir=MODEL_PATH,
-        torch_dtype=torch.float16,
-        # dtype="float16",
-        trust_remote_code=True
-    )
+    if platform == 'Kaggle':
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_PATH,
+            torch_dtype=torch.float16,
+            # dtype="float16",
+            trust_remote_code=True
+        )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            "maya-research/maya1",
+            cache_dir=MODEL_PATH,
+            torch_dtype=torch.float16,
+            # dtype="float16",
+            trust_remote_code=True
+        )
     model.eval()
     tokenizer = getTokenizer(MODEL_PATH)
     print("Loading SNAC audio decoder...")
@@ -145,6 +153,9 @@ def delete_previous_outputs(outputPath, step):
 
 def convert(Args, content, title, outputPath):
     MayaArgs = Args.Generator.Maya
+
+    global platform
+    platform = Args.Platform
 
     MODEL_PATH = MayaArgs.ModelPath.__dict__[Args.Platform]
 
