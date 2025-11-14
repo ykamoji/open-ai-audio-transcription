@@ -252,7 +252,7 @@ def generate_emotion_lines(model, tokenizer, paragraph):
 def addEmotions(Args, pages):
     MODEL_PATH = Args.Emotions.ModelPath.__dict__[Args.Platform]
 
-    model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize)
+    model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize, Args.Platform)
 
     response = []
     for page in pages:

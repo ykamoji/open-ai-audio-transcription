@@ -8,7 +8,7 @@ Emotions:
   Quantize: False
   ModelPath:
     Default: /Users/ykamoji/Documents/open-ai-maya-audio-generation/models/
-    Kaggle: /kaggle/working/models/
+    Kaggle: # For Kaggle, use internal cache
     Colab: /content/open-ai-maya-audio-generation/Models/
 Generator:
   PageLimit:  10 # number(s) or empty

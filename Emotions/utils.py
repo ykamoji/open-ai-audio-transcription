@@ -65,7 +65,7 @@ AUTO_CORRECT_MAP = {
 }
 
 
-def getModelAndTokenizer(MODEL_PATH, quantize):
+def getModelAndTokenizer(MODEL_PATH, quantize, platform):
 
     if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8:
         DTYPE = torch.bfloat16
@@ -83,7 +83,7 @@ def getModelAndTokenizer(MODEL_PATH, quantize):
         )
 
     model = AutoModelForCausalLM.from_pretrained(
-        "meta-llama/Llama-3.1-8B-Instruct",
+        "meta-llama/Llama-3.1-8B-Instruct" if platform != 'Kaggle' else "/kaggle/input/llama-3-1-8b-instruct/transformers/1/1/Model",
         cache_dir=MODEL_PATH,
         quantization_config=bnb_config,
         device_map="auto",
@@ -92,8 +92,9 @@ def getModelAndTokenizer(MODEL_PATH, quantize):
         load_in_8bit=False
     )
 
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B-Instruct",
-                                              cache_dir=MODEL_PATH)
+    tokenizer = AutoTokenizer.from_pretrained(
+        "meta-llama/Llama-3.1-8B-Instruct" if platform != 'Kaggle' else "/kaggle/input/llama-3-1-8b-instruct/transformers/1/1/Tokenizer",
+        cache_dir=MODEL_PATH)
 
     tokenizer.pad_token = tokenizer.eos_token
     if model.config.eos_token_id is None:
@@ -101,19 +102,4 @@ def getModelAndTokenizer(MODEL_PATH, quantize):
     model.config.pad_token_id = model.config.eos_token_id
 
     return model, tokenizer
-
-
-def clean_output(outputs, chunks):
-
-    extracted_data = []
-    for idx, output in enumerate(outputs):
-        if "Answer:" in output:
-            clean_lines = output.rsplit("Answer:", 1)[-1].strip()
-            extracted_data.append(clean_lines)
-        else:
-            print(f"\nFix needed for {output} !\n")
-            # backup in case the Model fails
-            extracted_data.append(chunks[idx])
-
-    return extracted_data
 

@@ -1,7 +1,7 @@
 import torch
 from tqdm import tqdm
 from Generator.utils import createChunks
-from Emotions.utils import getModelAndTokenizer, clean_output
+from Emotions.utils import getModelAndTokenizer
 
 
 SYSTEM_PROMPT = """
@@ -58,7 +58,7 @@ def generate_paragrpah(model, tokenizer, paragraph):
 def stylize(Args, pages):
     MODEL_PATH = Args.Emotions.ModelPath.__dict__[Args.Platform]
 
-    model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize)
+    model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize, Args.Platform)
 
     response = []
     for page in pages:

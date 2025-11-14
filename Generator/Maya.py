@@ -106,7 +106,7 @@ def getDescription(MayaArgs, title):
 
 def getModels(MODEL_PATH):
     model = AutoModelForCausalLM.from_pretrained(
-        "maya-research/maya1" if platform != "Kaggle" else '/kaggle/input/maya/transformers/1/1',
+        "maya-research/maya1" if platform != "Kaggle" else '/kaggle/input/maya/transformers/1/2/Model',
         cache_dir=MODEL_PATH,
         torch_dtype=torch.float16,
         # dtype="float16",
@@ -121,11 +121,10 @@ def getModels(MODEL_PATH):
 
 def getTokenizer(MODEL_PATH):
     tokenizer = AutoTokenizer.from_pretrained(
-        "maya-research/maya1" if platform != "Kaggle" else '/kaggle/input/maya/transformers/1/1',
+        "maya-research/maya1" if platform != "Kaggle" else '/kaggle/input/maya/transformers/1/2/Tokenizer',
         cache_dir=MODEL_PATH,
         trust_remote_code=True
     )
-    print(f"Model loaded: {len(tokenizer)} tokens in vocabulary")
     return tokenizer
 
 
