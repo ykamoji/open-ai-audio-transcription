@@ -1,98 +1,91 @@
 import torch
 import os
 import pandas as pd
-import difflib
 import re
-import random
-import spacy
 from tqdm import tqdm
 from collections import Counter, deque
-from Emotions.utils import getModelAndTokenizer, clean_output, ALLOWED_TAGS, AUTO_CORRECT_MAP, TAG_PENALTY_WEIGHTS, \
-    TAG_SIMILARITY_WEIGHTS
+from Emotions.utils import getModelAndTokenizer, ALLOWED_TAGS, AUTO_CORRECT_MAP, TAG_PENALTY_WEIGHTS
 
-nlp = spacy.load("en_core_web_md")
 
 TAG_STATS_PATH = 'emotion_tag_stats.csv'
 UNKNOWN_TAG_LOG_PATH = "unknown_tags_log.csv"
 unknown_tag_log = Counter()
 
-prompt = """
-You are an expressive text enhancer that adds emotional cues to writing.
-Your task:
-Insert the most appropriate emotion tags **after** specific words or phrases in a paragraph.
-Emotion tags you may use: <laugh>, <laugh_harder>, <sigh>, <chuckle>, <gasp>, <angry>, <excited>, <whisper>, <cry>, <scream>, <sing>, <snort>, <exhale>, <gulp>, <giggle>, <sarcastic>, <curious>.
-Rules:
-1. Keep the original text exactly as written. Do not paraphrase or rewrite.
-2. Insert emotion tags only where natural emotional cues are implied.
-3. Add the tag **right after** the word or phrase it applies to, before punctuation if it fits better.
-4. Use tags sparingly and only when contextually appropriate.
-5. Reflect tone (anger, excited, curious, laugh, sarcastic, etc.) based on clues in the text.
-Example 1:
-Input: "He looked at the strange machine and tilted his head."
-Answer: "He looked at the strange machine <curious> and tilted his head."
-Example 2:
-Input: "I can’t believe you actually did that. You’re unbelievable!"
-Answer: "I can’t believe you actually did that. <gasp> You’re unbelievable! <laugh>"
-Example 3:
-Input: "I tried so hard, but it still wasn’t enough."
-Answer: "I tried so hard, <sigh> but it still wasn’t enough <cry>."
-Now process the following paragraph and add the most appropriate emotion tags:
+BASE_SYSTEM_PROMPT = """
+You are a strict text-tagging assistant.
+
+YOUR ONLY TASK:
+Insert emotion/action TAGS into the user’s paragraph.
+
+HARD RULES — FOLLOW EXACTLY:
+1. Do NOT change any original words.
+2. Do NOT add new words.
+3. Do NOT delete any words.
+4. Do NOT reorder any words.
+5. Insert ONLY tags.
+6. Tags must be UPPERCASE and in square brackets: [LAUGH]
+7. Insert the tag IMMEDIATELY BEFORE the matching word or phrase.
+8. If a trigger does NOT match exactly → add NO TAG.
+9. Output ONLY the tagged paragraph. No explanations.
+
+ALLOWED TAGS:
+[TAGS]
+
+TRIGGER → TAG (exact match only):
+[TRIGGER]
+
+DO NOT TAG:
+- Emotion adjectives: sad, angry, scared
+- Tone adverbs: sadly, angrily, nervously, happily
+- Any action NOT listed above
+- Partial or fuzzy matches
+
+EXAMPLES (follow format exactly):
+[EXAMPLES]
+
+FINAL REQUIREMENT:
+Return ONLY the paragraph with inserted tags.
+Nothing else.
 """
+
+TRIGGER = [
+    """"- gasped", "breath caught" → [GASP]""",
+    """"- whispered", "voice barely audible" → [WHISPER]""",
+    """"- tears fell", "crying", "started crying" → [CRY]""",
+    """"- smirk", "eye-roll", "rolled her eyes" → [SARCASTIC]""",
+    """"- eyes widened", "wide-eyed" → [CURIOUS]""",
+]
+
+EXAMPLES = [
+    """He suddenly [GASP] gasped.""",
+    """Her [WHISPER] voice barely audible, she spoke.""",
+    """His [CURIOUS] eyes widened at the news.""",
+    """She gave a [SARCASTIC] smirk.""",
+    """He [CRY] started crying.""",
+]
+
 
 if os.path.exists('emotion_tag_stats.csv'):
     df_stats = pd.read_csv(TAG_STATS_PATH)
     global_tag_counts = Counter(dict(zip(df_stats["tag"], df_stats["count"])))
-    # print(f"Loaded previous tag stats ({sum(global_tag_counts.values())} total tags).")
 else:
     global_tag_counts = Counter({tag: 0 for tag in ALLOWED_TAGS})
-    df_stats = pd.DataFrame({"tag": ALLOWED_TAGS, "count": [0] * len(ALLOWED_TAGS)})
-    # print("🆕 Initialized new tag frequency tracker.")
 
 HISTORY_WINDOW = 5  # Last 5 paragraphs matter
 recent_tag_history = deque(maxlen=HISTORY_WINDOW)
 
 
-def spacy_similarity(a, b):
-    return nlp(a).similarity(nlp(b))
-
-
-def weighted_fuzzy_match(raw, allowed):
-    raw = raw.lower().strip()
-    best_score = -1
-    best_tag = None
-
-    for tag in allowed:
-        fuzzy = difflib.SequenceMatcher(None, raw, tag).ratio()
-        semantic = spacy_similarity(raw, tag)
-        bonus = 0.0
-        for k, related in TAG_SIMILARITY_WEIGHTS.items():
-            if k in raw:
-                if tag in related:
-                    bonus = 0.25
-        score = (0.2 * fuzzy) + (0.7 * semantic) + bonus
-        if score > best_score:
-            best_score = score
-            best_tag = tag
-
-    return best_tag
-
-
 def autocorrect_tag(tag):
-    global unknown_tag_log
     t = tag.lower().strip()
-
-    if t not in ALLOWED_TAGS and t not in AUTO_CORRECT_MAP:
-        unknown_tag_log[t] += 1
-
-    if t in AUTO_CORRECT_MAP:
-        return f"<{AUTO_CORRECT_MAP[t]}>"
 
     if t in ALLOWED_TAGS:
         return f"<{t}>"
 
-    best = weighted_fuzzy_match(t, ALLOWED_TAGS)
+    if t in AUTO_CORRECT_MAP:
+        return f"<{AUTO_CORRECT_MAP[t]}>"
 
-    return f"<{best}>" if best else ""
+    unknown_tag_log[t] += 1
+    return ""
 
 
 def remove_and_autocorrect_tags(text):
@@ -103,7 +96,7 @@ def extract_tags(text):
     return re.findall(r'<([^>]+)>', text)
 
 
-def moderate_tag_reuse(text, max_repeat_per_tag=2):
+def moderate_tag_reuse(text, max_repeat_per_tag=4):
     counts = Counter()
     result = []
     tokens = re.split(r'(<[^>]+>)', text)
@@ -118,10 +111,18 @@ def moderate_tag_reuse(text, max_repeat_per_tag=2):
     return "".join(result)
 
 
-def build_penalty_feedback():
+def normalize_tags(text):
+    def repl(match):
+        tag = match.group(1).lower()
+        return f"<{tag}>"
+
+    return re.sub(r"\[([A-Za-z0-9_]+)\]", repl, text)
+
+
+def build_penalty_tags():
     recent_counts = Counter(recent_tag_history)
     if not recent_counts:
-        return ""
+        return ALLOWED_TAGS, TRIGGER, EXAMPLES
 
     penalty_strength = {}
     for tag, cnt in recent_counts.items():
@@ -129,44 +130,58 @@ def build_penalty_feedback():
         penalty_strength[tag] = cnt * weight
 
     sorted_tags = sorted(penalty_strength.items(), key=lambda x: x[1], reverse=True)
+
     if not sorted_tags:
-        return ""
+        return ALLOWED_TAGS, TRIGGER, EXAMPLES
 
-    mild = [t for t, s in sorted_tags if 2 <= s < 3]
-    medium = [t for t, s in sorted_tags if 3 <= s < 5]
-    strong = [t for t, s in sorted_tags if s >= 5]
+    high = [t for t, s in sorted_tags if s > HISTORY_WINDOW]
 
-    parts = []
-    if mild:
-        parts.append("slightly more often recently: " + ", ".join(f"<{t}>" for t in mild))
-    if medium:
-        parts.append("moderately often recently: " + ", ".join(f"<{t}>" for t in medium))
-    if strong:
-        parts.append("quite often recently: " + ", ".join(f"<{t}>" for t in strong))
+    if not high:
+        return ALLOWED_TAGS, TRIGGER, EXAMPLES
+    else:
+        NEW_ALLOWED_TAGS = [tag for tag in ALLOWED_TAGS if tag.lower() not in [h.lower() for h in high]]
 
-    if not parts:
-        return ""
+        def extract_tag(text):
+            match = re.search(r'\[([A-Z_]+)\]', text)
+            return match.group(1).lower() if match else None
 
-    feedback = (
-        "\nNote on recent tag usage: " +
-        " ; ".join(parts) +
-        ". If multiple tags fit, prefer a different one to increase variety.\n"
-    )
-    return feedback
+        NEW_TRIGGERS = []
+        for t in TRIGGER:
+            tag = extract_tag(t)
+            if tag and tag in NEW_ALLOWED_TAGS:
+                NEW_TRIGGERS.append(t)
+
+        NEW_EXAMPLES = []
+        for e in EXAMPLES:
+            tag = extract_tag(e)
+            if tag and tag in NEW_ALLOWED_TAGS:
+                NEW_EXAMPLES.append(e)
+
+        return NEW_ALLOWED_TAGS, NEW_TRIGGERS, NEW_EXAMPLES
 
 
-def add_global_feedback():
-    if random.random() < 0.70:  # 70% of the time: no penalty → prevents monotonic bias
-        return prompt + "{}\nAnswer:"
-    feedback = build_penalty_feedback()
-    return (prompt + feedback if feedback else prompt) + "{}\nAnswer:"
+def build_system_prompt():
+    tags, triggers, examples = build_penalty_tags()
+    tags = ", ".join(f"[{t.upper()}]" for t in tags)
+    triggers = "\n".join(f"[{t.upper()}]" for t in triggers)
+    examples = "\n".join(f"[{t.upper()}]" for t in examples)
+
+    return BASE_SYSTEM_PROMPT.replace("[TAGS]", tags).replace("[TRIGGER]", triggers).replace("[EXAMPLES]", examples)
+
+
+def make_user_prompt(paragraph: str) -> str:
+    return f"""
+    Insert tags into the paragraph. Do NOT change, remove, or add any words.
+    Paragraph:
+    {paragraph}
+    Return ONLY the tagged paragraph."""
 
 
 def save_global_stats():
     df = (pd.DataFrame.from_dict(global_tag_counts, orient="index", columns=["count"])
-        .reset_index()
-        .rename(columns={"index": "tag"})
-    )
+          .reset_index()
+          .rename(columns={"index": "tag"})
+          )
     df = df.sort_values("count", ascending=False)
     df.to_csv(TAG_STATS_PATH, index=False)
 
@@ -199,35 +214,38 @@ def save_unknown_tag_log():
 
 def generate_emotion_lines(model, tokenizer, paragraph):
     global global_tag_counts
-    tagged = []
 
-    batch_prompts = add_global_feedback()
+    messages = [
+        {"role": "system", "content": build_system_prompt()},
+        {"role": "user", "content": make_user_prompt(paragraph)}
+    ]
 
-    batch_prompts = batch_prompts.replace("{}", paragraph)
+    input_ids = tokenizer.apply_chat_template(messages, return_tensors="pt").to(model.device)
 
-    inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True, truncation=True, max_length=4096).to(
-        model.device)
-
-    with torch.no_grad():
+    with torch.inference_mode():
         outputs = model.generate(
-            **inputs,
-            max_new_tokens=4096,
+            input_ids,
+            max_new_tokens=256,
+            temperature=0.0,  # deterministic
             do_sample=False,
-            repetition_penalty=1.1,
-            pad_token_id=tokenizer.eos_token_id
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.eos_token_id,
         )
 
-    decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-    text = [d.strip() for d in decoded]
-    text = clean_output(text, [prompt])[0]
-    clean_text = moderate_tag_reuse(text)
-    clean_text = remove_and_autocorrect_tags(clean_text)
+    generated_ids = outputs[0]
+    new_tokens = generated_ids[input_ids.shape[-1]:]
+    completion = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+    del input_ids, outputs, generated_ids
+
+    completion = normalize_tags(completion)
+    clean_text = remove_and_autocorrect_tags(completion)
+    clean_text = re.sub(r"\s+", " ", clean_text).strip()
+    clean_text = moderate_tag_reuse(clean_text)
     tags = extract_tags(clean_text)
     for t in tags:
         if t in ALLOWED_TAGS:
             global_tag_counts[t] += 1
             recent_tag_history.append(t)
-    tagged.append(clean_text)
     return clean_text
 
 
@@ -236,9 +254,6 @@ def addEmotions(Args, pages):
 
     model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize)
 
-    for t in ALLOWED_TAGS:
-        TAG_PENALTY_WEIGHTS.setdefault(t, 1.0)
-
     response = []
     for page in pages:
         content = page['content']
@@ -246,7 +261,8 @@ def addEmotions(Args, pages):
         for paragraph in tqdm(content, desc="Processing", ncols=100):
             emotion_lines = generate_emotion_lines(model, tokenizer, paragraph)
             outputs.append(emotion_lines)
-            torch.cuda.empty_cache()
+
+        torch.cuda.empty_cache()
         response.append({"title": page['title'], "content": outputs})
         save_global_stats()
         save_unknown_tag_log()

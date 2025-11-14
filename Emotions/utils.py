@@ -27,31 +27,6 @@ TAG_PENALTY_WEIGHTS = {
     "curious": 1.0,
 }
 
-TAG_SIMILARITY_WEIGHTS = {
-    "laugh":         ["laugh_harder", "giggle", "chuckle"],
-    "laugh_harder":  ["laugh", "giggle"],
-    "giggle":        ["laugh", "laugh_harder", "chuckle"],
-    "chuckle":       ["laugh", "giggle"],
-
-    "cry":           ["sigh", "exhale"],
-    "sigh":          ["cry", "exhale"],
-    "exhale":        ["sigh", "cry"],
-
-    "angry":         ["sarcastic", "scream", "snort"],
-    "sarcastic":     ["angry", "snort"],
-    "snort":         ["sarcastic", "laugh"],
-
-    "gasp":          ["excited", "cry"],
-    "excited":       ["gasp", "laugh"],
-
-    "whisper":       ["curious"],
-    "curious":       ["whisper", "excited"],
-
-    "gulp":          ["exhale"],
-    "scream":        ["angry"],
-    "sing":          ["excited", "laugh"],
-}
-
 
 AUTO_CORRECT_MAP = {
     "happy": "giggle",
@@ -92,6 +67,11 @@ AUTO_CORRECT_MAP = {
 
 def getModelAndTokenizer(MODEL_PATH, quantize):
 
+    if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8:
+        DTYPE = torch.bfloat16
+    else:
+        DTYPE = torch.float16
+
     bnb_config = None
     if quantize:
         from transformers import BitsAndBytesConfig
@@ -103,16 +83,16 @@ def getModelAndTokenizer(MODEL_PATH, quantize):
         )
 
     model = AutoModelForCausalLM.from_pretrained(
-        "mistralai/Mistral-7B-Instruct-v0.3",
+        "meta-llama/Llama-3.1-8B-Instruct",
+        cache_dir=MODEL_PATH,
         quantization_config=bnb_config,
         device_map="auto",
-        torch_dtype=torch.float16,
-        # dtype="float16",
-        low_cpu_mem_usage=True,
-        cache_dir=MODEL_PATH
+        torch_dtype=DTYPE,
+        load_in_4bit=False,
+        load_in_8bit=False
     )
 
-    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3",
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B-Instruct",
                                               cache_dir=MODEL_PATH)
 
     tokenizer.pad_token = tokenizer.eos_token

@@ -7,7 +7,7 @@ import argparse
 import soundfile as sf
 import numpy as np
 from utils import createCache
-from Emotions.sanitise import sanitise
+from Emotions.stylize import stylize
 from Emotions.emotions import addEmotions
 from utils import CustomObject, get_yaml_loader, updateCache
 from Generator.OpenAI import convert as openAIConvert
@@ -72,7 +72,7 @@ class VoiceGenerator:
                     update_voice_cache = True
 
             print(f"Need to run spellcheck and grammars for {len(contents_to_process)} pages")
-            spell_checked_paragraphs = sanitise(self.Args, contents_to_process)
+            spell_checked_paragraphs = stylize(self.Args, contents_to_process)
             for page in spell_checked_paragraphs:
                 self.VOICE_CACHE[page["title"]] = page['content']
 
