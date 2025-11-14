@@ -220,11 +220,15 @@ def generate_emotion_lines(model, tokenizer, paragraph):
         {"role": "user", "content": make_user_prompt(paragraph)}
     ]
 
-    input_ids = tokenizer.apply_chat_template(messages, return_tensors="pt").to(model.device)
+    encoded = tokenizer.apply_chat_template(messages, padding=True, return_tensors="pt")
+
+    input_ids = encoded["input_ids"].to(model.device)
+    attention_mask = encoded["attention_mask"].to(model.device)
 
     with torch.inference_mode():
         outputs = model.generate(
-            input_ids,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             max_new_tokens=256,
             temperature=0.0,  # deterministic
             do_sample=False,

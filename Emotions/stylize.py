@@ -31,11 +31,15 @@ def generate_paragrpah(model, tokenizer, paragraph):
         {"role": "user", "content": paragraph}
     ]
 
-    input_ids = tokenizer.apply_chat_template(
+    encoded = tokenizer.apply_chat_template(
         messages,
         add_generation_prompt=True,
-        return_tensors="pt"
-    ).to(model.device)
+        return_tensors="pt",
+        padding=True
+    )
+
+    input_ids = encoded["input_ids"].to(model.device)
+    attention_mask = encoded["attention_mask"].to(model.device)
 
     terminators = [
         tokenizer.eos_token_id,
@@ -44,10 +48,12 @@ def generate_paragrpah(model, tokenizer, paragraph):
 
     with torch.no_grad():
         output_ids = model.generate(
-            input_ids,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             max_new_tokens=1024,
             do_sample=False,
             eos_token_id=terminators,
+            pad_token_id=tokenizer.eos_token_id
         )
 
     decoded = output_ids[0][input_ids.shape[-1]:]
@@ -68,7 +74,7 @@ def stylize(Args, pages):
         for paragraph in tqdm(chunks, desc="Processing", ncols=100):
             stylized_paragraph = generate_paragrpah(model, tokenizer, paragraph)
             outputs.extend(stylized_paragraph)
-            torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         response.append({"title": page['title'], "content": outputs})
 
     return response

@@ -97,9 +97,7 @@ def getModelAndTokenizer(MODEL_PATH, quantize, platform):
         cache_dir=MODEL_PATH)
 
     tokenizer.pad_token = tokenizer.eos_token
-    if model.config.eos_token_id is None:
-        model.config.eos_token_id = tokenizer.eos_token_id
-    model.config.pad_token_id = model.config.eos_token_id
+    model.config.pad_token_id = tokenizer.eos_token_id
 
     return model, tokenizer
 
