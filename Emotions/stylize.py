@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 from Generator.utils import createChunks
 from Emotions.utils import getModelAndTokenizer
-
+from utils import updateCache
 
 SYSTEM_PROMPT = """
 You are a professional editor preparing manuscripts for audiobook narration. Your task is to refine the paragraph to improve clarity, rhythm, 
@@ -25,7 +25,6 @@ Return only the edited paragraph, clean and ready for audiobook production.
 
 
 def generate_paragrpah(model, tokenizer, paragraph):
-
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": paragraph}
@@ -67,13 +66,14 @@ def generate_paragrpah(model, tokenizer, paragraph):
     return tokenizer.decode(decoded, skip_special_tokens=True).strip()
 
 
-def stylize(Args, pages):
+def stylize(Args, pages, VOICE_CACHE):
     MODEL_PATH = Args.Emotions.ModelPath.__dict__[Args.Platform]
 
     model, tokenizer = getModelAndTokenizer(MODEL_PATH, Args.Emotions.Quantize, Args.Platform)
 
-    response = []
+    processed = 0
     for page in pages:
+        print(f"\nRunning stylization on page {page['title']}.")
         content = page['content']
         chunks = createChunks(content, limit=5000)
         outputs = []
@@ -81,6 +81,11 @@ def stylize(Args, pages):
             stylized_paragraph = generate_paragrpah(model, tokenizer, paragraph)
             outputs.append(stylized_paragraph)
         torch.cuda.empty_cache()
-        response.append({"title": page['title'], "content": outputs})
 
-    return response
+        #Save the page generated
+        if outputs:
+            VOICE_CACHE[page["title"]] = outputs
+            updateCache('voiceCache.json', VOICE_CACHE)
+            processed += 1
+
+    return processed

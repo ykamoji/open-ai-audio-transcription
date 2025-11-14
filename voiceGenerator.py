@@ -65,20 +65,17 @@ class VoiceGenerator:
         if self.Args.Step == 1:
             print(f"Processing spellcheck and grammars for {notebook_name} {section_name}")
             contents_to_process = []
-            update_voice_cache = False
             for pageNo, page in enumerate(pages[:limit]):
                 if not self.VOICE_CACHE or page["title"] not in self.VOICE_CACHE:
                     contents_to_process.append(page)
-                    update_voice_cache = True
 
-            print(f"Need to run spellcheck and grammars for {len(contents_to_process)} pages")
-            spell_checked_paragraphs = stylize(self.Args, contents_to_process)
-            for page in spell_checked_paragraphs:
-                self.VOICE_CACHE[page["title"]] = page['content']
-
-            if update_voice_cache: updateCache('voiceCache.json', self.VOICE_CACHE)
-
-            print(f"Spell check and grammar completed !")
+            if contents_to_process:
+                print(f"Need to run spellcheck and grammars for {len(contents_to_process)} pages")
+                spell_checked_paragraphs = stylize(self.Args, contents_to_process, self.VOICE_CACHE)
+                if spell_checked_paragraphs == len(contents_to_process):
+                    print(f"Spell check and grammar completed!")
+                else:
+                    print(f"Something went wrong! Check the logs.")
 
         if self.Args.Step == 2:
             print(f"Creating Emotions for {notebook_name} {section_name}")
